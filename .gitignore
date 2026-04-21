@@ -9,7 +9,7 @@ Desktop.ini
 
 __pycache__/
 *.pyc
-*.pyogit add -f nginx.conf
+*.pyo
 *.pyd
 .Python
 env/

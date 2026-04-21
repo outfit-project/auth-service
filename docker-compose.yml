@@ -1,42 +1,98 @@
 services:
   auth:
-    build: ./auth-service
-    env_file: ./auth-service/.env
-    ports: ["8001:8000"]
+    build: .
+    container_name: outfit_auth_api
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_TLS: "false"
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./migrations:/service/migrations
     depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-    deploy:
-      replicas: 2
-      restart_policy: { condition: on-failure }
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - auth-network
+    restart: on-failure
+
+  mail-worker:
+    build: .
+    container_name: outfit_auth_mail_worker
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_TLS: "false"
+    command: ["python", "-m", "app.workers.mail_worker"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - auth-network
+    restart: on-failure
 
   postgres:
-    image: postgres:16
-    container_name: outfit_auth
+    image: postgres:16-alpine
+    container_name: outfit_auth_pg
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: auth_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata_auth:/var/lib/postgresql/data
     networks:
-      - backend-network
+      - auth-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U admin -d auth_db" ]
+      test: ["CMD-SHELL", "pg_isready -U admin -d auth_db"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
+    container_name: outfit_auth_redis
     command: ["redis-server", "--appendonly", "yes"]
-    volumes: ["redisdata:/data"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata_auth:/data
+    networks:
+      - auth-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: outfit_auth_mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - auth-network
+    restart: on-failure
 
 volumes:
-  pgdata:
-  redisdata:
+  pgdata_auth:
+  redisdata_auth:
+
+networks:
+  auth-network:
+    driver: bridge
