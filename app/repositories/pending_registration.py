@@ -31,14 +31,6 @@ class PendingRegistration:
 
 
 class PendingRegistrationRepository:
-    """
-    Draft registrations stored in Redis until email is verified.
-
-    Keys:
-      pending:reg:{email}       -> JSON payload, TTL = PENDING_REG_TTL_SEC
-      rate:reg:resend:{email}   -> set with TTL = REG_RESEND_COOLDOWN_SEC
-    """
-
     def __init__(self, redis: Redis) -> None:
         self._r = redis
 
@@ -51,7 +43,6 @@ class PendingRegistrationRepository:
         return f"rate:reg:resend:{email.lower()}"
 
     async def try_lock_resend(self, email: str) -> bool:
-        """Returns True if the caller is allowed to send a code now."""
         acquired = await self._r.set(
             self._resend_key(email),
             "1",
@@ -90,16 +81,6 @@ class PendingRegistrationRepository:
         return PendingRegistration(**data)
 
     async def check_code(self, email: str, code: str) -> PendingRegistration | None:
-        """
-        Validate the verification code WITHOUT consuming the pending record.
-        The caller (VerifyService) is responsible for calling `delete(email)`
-        only after the user has been successfully written to Postgres,
-        otherwise a DB failure would leave the user unable to re-verify.
-
-        Returns the payload on success; None on miss / wrong code / too many attempts.
-        On wrong code, increments attempts and deletes the record once the
-        limit is reached.
-        """
         key = self._pending_key(email)
         raw = await self._r.get(key)
         if not raw:

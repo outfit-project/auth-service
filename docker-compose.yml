@@ -7,9 +7,6 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_TLS: "false"
     ports:
       - "8001:8000"
     volumes:
@@ -19,27 +16,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - auth-network
-    restart: on-failure
-
-  mail-worker:
-    build: .
-    container_name: outfit_auth_mail_worker
-    env_file: .env
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_TLS: "false"
-    command: ["python", "-m", "app.workers.mail_worker"]
-    depends_on:
-      redis:
-        condition: service_healthy
-      mailhog:
-        condition: service_started
     networks:
       - auth-network
     restart: on-failure
@@ -78,16 +54,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: outfit_auth_mailhog
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-    networks:
-      - auth-network
-    restart: on-failure
 
 volumes:
   pgdata_auth:

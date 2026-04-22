@@ -23,16 +23,7 @@ class Settings(BaseSettings):
     VERIFY_MAX_ATTEMPTS: int = 5
     CODE_PEPPER: str = Field(..., min_length=16)
 
-    SMTP_HOST: str = "localhost"
-    SMTP_PORT: int = 1025
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "no-reply@outfit.local"
-    SMTP_TLS: bool = False
-
     MAIL_STREAM: str = "mail:outbox"
-    MAIL_GROUP: str = "mail-workers"
-    MAIL_CONSUMER: str = "worker-1"
 
     DEBUG: bool = False
     SERVICE_NAME: str = "auth-service"
