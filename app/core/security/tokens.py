@@ -19,7 +19,7 @@ class JWTTokenProvider:
             raise ValueError("SECRET_KEY must be set for JWT")
         self._secret = secret_key
         self._alg = algorithm
-        self._access_expire = timedelta(minutes=access_expire_min)
+        self._access_expire = timedelta(days=access_expire_min)
         self._refresh_expire = timedelta(days=refresh_expire_days)
 
     def _encode(self, payload: dict, expires_in: timedelta) -> str:
