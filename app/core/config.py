@@ -27,7 +27,9 @@ class Settings(BaseSettings):
 
     DEBUG: bool = False
     SERVICE_NAME: str = "auth-service"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = (
+        "http://192.168.0.213,http://localhost:5173,http://localhost:3000"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

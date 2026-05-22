@@ -2,11 +2,14 @@ services:
   auth:
     build: .
     container_name: outfit_auth_api
-    env_file: .env
+    env_file:
+      - .env
+      - ../../deploy.env
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://192.168.0.213,http://localhost:5173,http://localhost:3000}
     ports:
       - "8001:8000"
     volumes:
@@ -18,6 +21,7 @@ services:
         condition: service_healthy
     networks:
       - auth-network
+      - wardrobe-shared
     restart: on-failure
 
   postgres:
@@ -62,3 +66,6 @@ volumes:
 networks:
   auth-network:
     driver: bridge
+  wardrobe-shared:
+    external: true
+    name: ${WARDROBE_DOCKER_NETWORK:-wardrobe-service_wardrobe-network}
