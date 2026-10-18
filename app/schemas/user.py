@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserOut(BaseModel):
@@ -17,6 +17,13 @@ class UserRegisterSchema(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=128)
     password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def smtp_compatible_email(cls, value: EmailStr) -> EmailStr:
+        if not str(value).split("@", 1)[0].isascii():
+            raise ValueError("Use an email address with an ASCII local part before @")
+        return value
 
 
 class UserLoginSchema(BaseModel):
