@@ -1,4 +1,76 @@
-name: vestis
-include:
-  - path: ../../docker-compose.yml
-    env_file: ../../.env
+name: vestis-auth
+
+services:
+  auth:
+    build: .
+    ports: ["127.0.0.1:${AUTH_PORT:-8001}:8000"]
+    environment:
+      DB_HOST: auth-db
+      DB_PORT: "5432"
+      DB_NAME: auth_db
+      DB_USER: ${DB_USER:-vestis}
+      DB_PASSWORD: ${DB_PASSWORD:?Copy .env.example to .env and set DB_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      CODE_PEPPER: ${CODE_PEPPER:?Set CODE_PEPPER in .env}
+      ALGORITHM: HS256
+      ACCESS_EXPIRE_MIN: ${ACCESS_EXPIRE_MIN:-15}
+      REFRESH_EXPIRE_DAYS: ${REFRESH_EXPIRE_DAYS:-30}
+      REDIS_URL: redis://auth-redis:6379/0
+      MAIL_STREAM: ${MAIL_STREAM:-mail:outbox}
+      PENDING_REG_TTL_SEC: ${PENDING_REG_TTL_SEC:-600}
+      REG_RESEND_COOLDOWN_SEC: ${REG_RESEND_COOLDOWN_SEC:-60}
+      VERIFY_MAX_ATTEMPTS: ${VERIFY_MAX_ATTEMPTS:-5}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      DEBUG: "false"
+    depends_on:
+      auth-db: {condition: service_healthy}
+      auth-redis: {condition: service_healthy}
+    networks:
+      default:
+      vestis:
+        aliases: [outfit_auth_api]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-vestis}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: auth_db
+    volumes: [auth-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  auth-redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [auth-redis-data:/data]
+    networks:
+      default:
+      vestis:
+        aliases: [vestis-auth-redis]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+networks:
+  vestis:
+    external: true
+    name: ${VESTIS_NETWORK:-vestis-services}
+
+volumes:
+  auth-data:
+  auth-redis-data:

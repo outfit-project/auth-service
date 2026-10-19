@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8.4,<10
+pytest-asyncio>=1,<2
+fakeredis>=2.31,<3
+httpx==0.28.1

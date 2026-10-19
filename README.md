@@ -2,7 +2,23 @@
 
 Owns account registration, email-code verification, password login and access/refresh JWTs. Built with FastAPI, SQLAlchemy, asyncpg, Redis and Alembic.
 
-[Project overview](../../README.md) · [Deployment](../../DEPLOY.md) · [Notifications](../notification-service/README.md)
+[Notifications](https://github.com/outfit-project/notifation-service) · [Run all services](https://github.com/outfit-project/api-gateway#run-all-repositories)
+
+## Start this repository
+
+Requirements: Docker with Compose 2.20+. Run these commands from this repository:
+
+```bash
+cp .env.example .env
+docker network create vestis-services
+docker compose up --build -d --wait --wait-timeout 120
+```
+
+PowerShell also supports `cp`. Copy the example only for initial setup; preserve an existing `.env` and reconcile it with the example. Create the shared network once; skip creation if it already exists. `VESTIS_NETWORK` selects another pre-created network. Example secrets are for local development; replace them for deployment.
+
+Open `http://localhost:8001/docs`. This Compose project starts only auth, PostgreSQL and Redis, using persistent project-specific volumes. No parent files or other service checkouts are required. `docker compose down` stops only this project and preserves its volumes.
+
+Auth queues verification mail without a notification worker. To receive codes, start the notification repository on the same network with `REDIS_URL=redis://vestis-auth-redis:6379/0`; open its Mailpit at `http://localhost:8025`. Auth, wardrobe and outfit must use the same `SECRET_KEY`. The shared network exposes auth as `outfit_auth_api:8000` and its outbox Redis as `vestis-auth-redis:6379`.
 
 ## Responsibilities and data
 
@@ -17,7 +33,7 @@ Pending registrations expire after 600 seconds. Resending requires a 60-second c
 
 ## HTTP API
 
-Public paths below are available through `http://localhost:8080`. Requests use JSON. Only `/auth/me` requires `Authorization: Bearer <access_token>`.
+Paths below are available directly at `http://localhost:8001`, or through a separately started gateway at `http://localhost:8080`. Requests use JSON. Only `/auth/me` requires `Authorization: Bearer <access_token>`.
 
 | Method | Path | Request | Success |
 | --- | --- | --- | --- |
@@ -46,49 +62,47 @@ The producer approximately caps the stream at 100,000 entries. Pending-registrat
 
 ## Configuration
 
-Values below describe the root Compose deployment. Settings are defined in [app/core/config.py](app/core/config.py); the service also reads a local `.env`.
+Values below describe this repository's [docker-compose.yml](docker-compose.yml). Settings are defined in [app/core/config.py](app/core/config.py). Compose reads this repository's `.env` and passes the explicit environment to the container.
 
 | Variable | Compose value / purpose |
 | --- | --- |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | `auth-db`, `5432`, `auth_db` |
-| `DB_USER`, `DB_PASSWORD` | Root configuration; generated password |
+| `DB_USER`, `DB_PASSWORD` | Local `.env`; database credentials |
 | `REDIS_URL` | `redis://auth-redis:6379/0` |
 | `SECRET_KEY`, `ALGORITHM` | Shared JWT secret; `HS256`; must match wardrobe/outfit |
 | `ACCESS_EXPIRE_MIN`, `REFRESH_EXPIRE_DAYS` | `15`, `30` |
-| `CODE_PEPPER` | Separate generated secret, at least 16 characters |
+| `CODE_PEPPER` | Separate verification secret, at least 16 characters |
 | `MAIL_STREAM` | `mail:outbox`; must match notification |
 | `PENDING_REG_TTL_SEC` | Application default `600` |
 | `REG_RESEND_COOLDOWN_SEC` | Application default `60` |
 | `VERIFY_MAX_ATTEMPTS` | Application default `5` |
-| `CORS_ORIGINS` | Comma-separated browser origins from root configuration |
+| `CORS_ORIGINS` | Defaults to localhost ports 3000, 5173 and 8080 |
 | `DEBUG` | `false` in Compose |
 
-Root `.env` values reach containers only where referenced in [docker-compose.yml](../../docker-compose.yml). To change an application-only setting, add it to the service environment or a Compose override.
+`AUTH_PORT` changes the direct host port (default 8001). Internal database/Redis addresses are managed by Compose; native-development addresses in an old `.env` do not override them.
 
 ## Run and inspect
 
-From the project root:
+From this repository:
 
 ```bash
-python scripts/setup.py
-docker compose up --build -d --wait --wait-timeout 900
-docker compose logs -f auth notification
-curl http://localhost:8080/health/auth
+docker compose ps
+docker compose logs -f auth
+curl http://localhost:8001/health/ready
 ```
 
 The container runs `alembic upgrade head` before Uvicorn on port 8000. `GET /health/live` checks the process; `/health/ready` checks PostgreSQL and Redis, not SMTP. The gateway exposes readiness as `/health/auth`. Direct `/docs` and `/openapi.json` belong to the internal API, not the gateway's root route.
 
-For native development, supply service settings with reachable PostgreSQL/Redis addresses, then run `alembic upgrade head` and `uvicorn app.main:app --reload --port 8000` from this directory. Root Compose does not publish database/Redis ports to the host.
+For native development, supply service settings with reachable PostgreSQL/Redis addresses, then run `alembic upgrade head` and `uvicorn app.main:app --reload --port 8000` from this directory. Compose does not publish database/Redis ports to the host.
 
 ## Checks
 
-Use an isolated Python 3.12 environment. From the project root:
+Use an isolated Python 3.12 environment, from this repository:
 
 ```bash
-python -m pip install -r backend/auth-service/requirements.txt -r requirements-test.txt
-cd backend/auth-service
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 python -m compileall -q app
 ```
 
-Tests exercise registration/outbox events, verification/login/refresh, expiry units, cooldown/attempt limits and supported email addresses. For actual SMTP delivery and HTTP integration, run `python scripts/smoke.py` from the root with the stack running.
+Tests exercise registration/outbox events, verification/login/refresh, expiry units, cooldown/attempt limits and supported email addresses. For actual delivery, register through `/docs`, read the code in notification's Mailpit and call `/auth/verify`.
